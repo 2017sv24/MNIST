@@ -52,7 +52,8 @@ function classifier_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to classifier (see VARARGIN)
 
 % Choose default command line output for classifier
-handles.output = hObject;
+handles.feature = hObject;
+handles.method = hObject;
 
 % Update handles structure
 guidata(hObject, handles);
@@ -60,7 +61,7 @@ guidata(hObject, handles);
 % This sets up the initial plot - only do when we are invisible
 % so window can get raised using classifier.
 if strcmp(get(hObject,'Visible'),'off')
-    plot(rand(5));
+    plot(rand(10));
 end
 
 % UIWAIT makes classifier wait for user response (see UIRESUME)
@@ -75,27 +76,41 @@ function varargout = classifier_OutputFcn(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 % Get default command line output from handles structure
-varargout{1} = handles.output;
+varargout{1} = handles.feature;
 
 % --- Executes on button press in pushbutton_run.
 function pushbutton_run_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbutton_run (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+popup_feature = get(handles.popupmenu_feature, 'Value');
+popup_method = get(handles.popupmenu_method, 'Value');
+
 axes(handles.axes1);
 cla;
-
-popup_sel_index = get(handles.popupmenu_feature, 'Value');
-switch popup_sel_index
+switch popup_feature
     case 1
-        plot(rand(5));
+        %Raw
+        switch popup_feature
+            case 1
+                %KNN
+                plot(Recognition_Raw_KNN());
+            case 2
+                %SVM
+                plot(sin(1:0.01:25.99));
+        end
     case 2
+        %HOG
         plot(sin(1:0.01:25.99));
     case 3
+        %LBP
         bar(1:.5:10);
     case 4
+        %BoW
         plot(membrane);
     case 5
+        %Deep Learning
         surf(peaks);
 end
 
@@ -187,3 +202,69 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 set(hObject, 'String', {'KNN', 'SVM', 'DL'});
+
+
+function [ imgData, lblData ] = loadData( strFileImage, strFileLabel )
+    imgData = loadMNISTImages(strFileImage);
+    lblData = loadMNISTLabels(strFileLabel);
+%end
+
+function [ imgTrainData, lblTrainData ] = loadTrainData ( )
+    [ imgTrainData, lblTrainData ] = loadData( 'train-images.idx3-ubyte', 'train-labels.idx1-ubyte' );
+%end
+
+function [ imgTestData, lblTestData ] = loadTestData ( )
+    [ imgTestData, lblTestData ] = loadData( 't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte' );
+%end
+
+
+
+function featuresData = HOGFeatures (imgData)
+    cellSize = [2 2];
+    
+    imgI1D = imgData(:, 1);
+    imgI2D = reshape(imgI1D, 28, 28);
+    [featuresVector, ~] = extractHOGFeatures (imgI2D, 'CellSize', cellSize);
+    nSize = length(featuresVector);
+    
+    nData = size(imgData, 2);
+    featuresData = zeros(nSize, nData);
+    for i = 1:nData
+        imgI1D = imgData(:, i);
+        imgI2D = reshape(imgI1D, 28, 28);
+        featuresData(:,i) = extractHOGFeatures (imgI2D, 'CellSize', cellSize);
+    end
+
+
+function percentResult = Recognition_Raw_KNN ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    mdl = fitcknn(imgDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    lblResult = predict(mdl, imgDataTest');
+    
+    nPositiveResult = zeros(1, 10);
+    nNegativeResult = zeros(1, 10);
+    percentResult = zeros(1, 10);
+    
+    for i = 1:nTestData
+        realNumber = lblDataTest(i);
+        if lblResult(i) == lblDataTest(i)
+            if realNumber == 0
+                nPositiveResult(10) = nPositiveResult(10) + 1;
+            else
+                nPositiveResult(realNumber) = nPositiveResult(realNumber) + 1;
+            end
+        else
+            if realNumber == 0
+                nNegativeResult(10) = nNegativeResult(10) + 1;
+            else
+                nNegativeResult(realNumber) = nNegativeResult(realNumber) + 1;
+            end
+        end
+    end
+    
+    for i = 1:10
+        percentResult(i) = nPositiveResult(i) / (nPositiveResult(i) + nNegativeResult(i));
+    end
+%end
