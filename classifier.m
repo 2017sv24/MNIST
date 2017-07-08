@@ -78,43 +78,6 @@ function varargout = classifier_OutputFcn(hObject, eventdata, handles)
 % Get default command line output from handles structure
 varargout{1} = handles.feature;
 
-% --- Executes on button press in pushbutton_run.
-function pushbutton_run_Callback(hObject, eventdata, handles)
-% hObject    handle to pushbutton_run (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-popup_feature = get(handles.popupmenu_feature, 'Value');
-popup_method = get(handles.popupmenu_method, 'Value');
-
-axes(handles.axes1);
-cla;
-switch popup_feature
-    case 1
-        %Raw
-        switch popup_feature
-            case 1
-                %KNN
-                plot(Recognition_Raw_KNN());
-            case 2
-                %SVM
-                plot(sin(1:0.01:25.99));
-        end
-    case 2
-        %HOG
-        plot(sin(1:0.01:25.99));
-    case 3
-        %LBP
-        bar(1:.5:10);
-    case 4
-        %BoW
-        plot(membrane);
-    case 5
-        %Deep Learning
-        surf(peaks);
-end
-
-
 % --------------------------------------------------------------------
 function FileMenu_Callback(hObject, eventdata, handles)
 % hObject    handle to FileMenu (see GCBO)
@@ -176,7 +139,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
      set(hObject,'BackgroundColor','white');
 end
 
-set(hObject, 'String', {'Raw', 'HOG', 'LBP', 'BoW', 'Deep Learning'});
+set(hObject, 'String', {'Raw', 'HIST', 'HOG', 'LBP'});
 
 
 % --- Executes on selection change in popupmenu_method.
@@ -201,8 +164,11 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 
-set(hObject, 'String', {'KNN', 'SVM', 'DL'});
+set(hObject, 'String', {'KNN', 'SVM'});
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 function [ imgData, lblData ] = loadData( strFileImage, strFileLabel )
     imgData = loadMNISTImages(strFileImage);
@@ -217,7 +183,15 @@ function [ imgTestData, lblTestData ] = loadTestData ( )
     [ imgTestData, lblTestData ] = loadData( 't10k-images.idx3-ubyte', 't10k-labels.idx1-ubyte' );
 %end
 
-
+function featuresData = HISTFeatures (imgData)
+    nBins = 128;
+    
+    nData = size(imgData, 2);
+    featuresData = zeros(nBins, nData);
+    for i = 1:nData
+        featuresData(:,i) = imhist(imgData(:,i), nBins);
+    end
+%end
 
 function featuresData = HOGFeatures (imgData)
     cellSize = [2 2];
@@ -234,19 +208,33 @@ function featuresData = HOGFeatures (imgData)
         imgI2D = reshape(imgI1D, 28, 28);
         featuresData(:,i) = extractHOGFeatures (imgI2D, 'CellSize', cellSize);
     end
+%end
+
+function featuresData = LBPFeatures (imgData)
+    numNeighbors = 4;
+    radius = 4;
+    
+    imgI1D = imgData(:, 1);
+    imgI2D = reshape(imgI1D, 28, 28);
+    [featuresVector, ~] = extractLBPFeatures (imgI2D, 'NumNeighbors', numNeighbors, 'Radius', radius);
+    nSize = length(featuresVector);
+    
+    nData = size(imgData, 2);
+    featuresData = zeros(nSize, nData);
+    for i = 1:nData
+        imgI1D = imgData(:, i);
+        imgI2D = reshape(imgI1D, 28, 28);
+        featuresData(:,i) = extractLBPFeatures (imgI2D, 'NumNeighbors', numNeighbors, 'Radius', radius);
+    end
+%end
 
 
-function percentResult = Recognition_Raw_KNN ( )
-    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
-    mdl = fitcknn(imgDataTrain', lblDataTrain);
-    
-    [ imgDataTest, lblDataTest ] = loadTestData ( );
-    lblResult = predict(mdl, imgDataTest');
-    
+function percentResult = Get_Result (lblDataTest, lblResult)
     nPositiveResult = zeros(1, 10);
     nNegativeResult = zeros(1, 10);
     percentResult = zeros(1, 10);
     
+    nTestData = size(lblDataTest, 1);
     for i = 1:nTestData
         realNumber = lblDataTest(i);
         if lblResult(i) == lblDataTest(i)
@@ -268,3 +256,171 @@ function percentResult = Recognition_Raw_KNN ( )
         percentResult(i) = nPositiveResult(i) / (nPositiveResult(i) + nNegativeResult(i));
     end
 %end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function percentResult = Recognition_Raw_KNN ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = imgDataTrain;
+    mdl = fitcknn(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = imgDataTest;
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+function percentResult = Recognition_HIST_KNN ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = HISTFeatures (imgDataTrain);
+    mdl = fitcknn(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = HISTFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+
+function percentResult = Recognition_HOG_KNN ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = HOGFeatures (imgDataTrain);
+    mdl = fitcknn(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = HOGFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+function percentResult = Recognition_LBP_KNN ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = LBPFeatures (imgDataTrain);
+    mdl = fitcknn(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = LBPFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function percentResult = Recognition_Raw_SVM ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = imgDataTrain;
+    mdl = fitcsvm(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = imgDataTest;
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+function percentResult = Recognition_HIST_SVM ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = HISTFeatures (imgDataTrain);
+    mdl = fitcsvm(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = HISTFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+
+function percentResult = Recognition_HOG_SVM ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = HOGFeatures (imgDataTrain);
+    mdl = fitcsvm(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = HOGFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+function percentResult = Recognition_LBP_SVM ( )
+    [ imgDataTrain, lblDataTrain ] = loadTrainData ( );
+    featuresDataTrain = LBPFeatures (imgDataTrain);
+    mdl = fitcsvm(featuresDataTrain', lblDataTrain);
+    
+    [ imgDataTest, lblDataTest ] = loadTestData ( );
+    featuresDataTest = LBPFeatures (imgDataTest);
+    lblResult = predict(mdl, featuresDataTest');
+    
+    percentResult = Get_Result (lblDataTest, lblResult);
+%end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% --- Executes on button press in pushbutton_run.
+function pushbutton_run_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_run (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+popup_feature = get(handles.popupmenu_feature, 'Value');
+popup_method = get(handles.popupmenu_method, 'Value');
+
+axes(handles.axes1);
+cla;
+switch popup_feature
+    case 1
+        %Raw
+        switch popup_method
+            case 1
+                %KNN
+                plot(Recognition_Raw_KNN());
+            case 2
+                %SVM
+                plot(Recognition_Raw_SVM());
+        end
+    case 2
+        %HIST
+        switch popup_method
+            case 1
+                %KNN
+                plot(Recognition_HIST_KNN());
+            case 2
+                %SVM
+                plot(Recognition_HIST_SVM());
+        end
+    case 3
+        %HOG
+        switch popup_method
+            case 1
+                %KNN
+                plot(Recognition_HOG_KNN());
+            case 2
+                %SVM
+                plot(Recognition_HOG_SVM());
+        end
+    case 4
+        %LBP
+        switch popup_method
+            case 1
+                %KNN
+                plot(Recognition_LBP_KNN());
+            case 2
+                %SVM
+                plot(Recognition_LBP_SVM());
+        end
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
